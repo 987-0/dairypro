@@ -9,11 +9,13 @@ import {
   query, 
   orderBy,
   where,
-  serverTimestamp
+  serverTimestamp,
+  setDoc
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useFarm } from '../lib/farmContext';
 import { useProfile } from '../lib/useProfile';
+import { useToast } from '../lib/ToastContext';
 import { 
   Plus, 
   Stethoscope, 
@@ -73,9 +75,11 @@ const DAIRY_BREED_OPTIONS = [
 export const HerdManagement: React.FC = () => {
   const { farmOwnerId } = useFarm();
   const { profile, loading: profileLoading } = useProfile();
+  const { showSuccess, showError } = useToast();
   const [herd, setHerd] = useState<Cattle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [newCattle, setNewCattle] = useState({
     tagId: '',
     cowName: '',
@@ -118,6 +122,7 @@ export const HerdManagement: React.FC = () => {
         ownerId: farmOwnerId,
         updatedAt: serverTimestamp()
       });
+      showSuccess(`Cattle record "${newCattle.cowName || newCattle.tagId}" registered successfully!`);
       setShowAddModal(false);
       setNewCattle({ 
         tagId: '', 
@@ -134,6 +139,7 @@ export const HerdManagement: React.FC = () => {
         damInfo: ''
       });
     } catch (err) {
+      showError('Failed to register cattle');
       handleFirestoreError(err, OperationType.CREATE, 'cattle');
     }
   };
@@ -141,17 +147,26 @@ export const HerdManagement: React.FC = () => {
   const handleUpdateStatus = async (id: string, status: Cattle['status']) => {
     try {
       await updateDoc(doc(db, 'cattle', id), { status, updatedAt: serverTimestamp() });
+      showSuccess(`Cattle status updated to ${status}`);
     } catch (err) {
+      showError('Failed to update cattle status');
       handleFirestoreError(err, OperationType.UPDATE, `cattle/${id}`);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (profile?.role !== 'owner') return;
-    if (!confirm('Are you sure you want to delete this cattle record?')) return;
+    const animal = herd.find(a => a.id === id);
+    if (!animal) return;
     try {
       await deleteDoc(doc(db, 'cattle', id));
+      showSuccess(`Cattle record "${animal.cowName || animal.tagId}" deleted`, {
+        undoAction: async () => {
+          const { id: _, ...animalData } = animal;
+          await setDoc(doc(db, 'cattle', id), animalData);
+        }
+      });
     } catch (err) {
+      showError('Failed to delete cattle record');
       handleFirestoreError(err, OperationType.DELETE, `cattle/${id}`);
     }
   };
@@ -255,7 +270,15 @@ export const HerdManagement: React.FC = () => {
                    <Calendar className="w-3.5 h-3.5 text-terracotta-500" />
                    <span>Origin</span>
                 </div>
-                <p className="text-xs font-black uppercase tracking-tighter text-mud-900 truncate">{format(new Date(animal.birthDate), 'MMM yyyy')}</p>
+                <p className="text-xs font-black uppercase tracking-tighter text-mud-900 truncate">
+                  {(() => {
+                    try {
+                      return animal.birthDate ? format(new Date(animal.birthDate), 'MMM yyyy') : 'N/A';
+                    } catch {
+                      return 'N/A';
+                    }
+                  })()}
+                </p>
               </div>
             </div>
 
@@ -275,10 +298,32 @@ export const HerdManagement: React.FC = () => {
                     <History className="w-3.5 h-3.5" />
                     <span>State Transitions</span>
                  </div>
-                 {isOwner && (
-                   <button onClick={() => handleDelete(animal.id)} className="text-terracotta-500 opacity-30 hover:opacity-100 transition-opacity p-2">
-                      <Trash2 className="w-4 h-4" />
-                   </button>
+                 {deletingId === animal.id ? (
+                    <div className="flex items-center space-x-2 animate-in fade-in zoom-in duration-200">
+                      <button
+                        onClick={() => {
+                          handleDelete(animal.id);
+                          setDeletingId(null);
+                        }}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-cream-100 text-[9px] font-black uppercase tracking-wider rounded border border-red-600 cursor-pointer"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(null)}
+                        className="px-3 py-1.5 bg-cream-100 hover:bg-cream-200 text-mud-900 text-[9px] font-black uppercase tracking-wider rounded border border-mud-900/10 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                 ) : (
+                    <button 
+                      onClick={() => setDeletingId(animal.id)} 
+                      className="text-terracotta-500 hover:text-white hover:bg-terracotta-500 p-2 rounded transition-colors inline-flex items-center justify-center border-2 border-terracotta-500/20"
+                      title="Delete Cattle Record"
+                    >
+                       <Trash2 className="w-4 h-4" />
+                    </button>
                  )}
               </div>
               <div className="grid grid-cols-3 gap-3">

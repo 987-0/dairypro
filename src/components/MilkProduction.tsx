@@ -6,11 +6,15 @@ import {
   query, 
   orderBy,
   where,
-  serverTimestamp
+  serverTimestamp,
+  deleteDoc,
+  doc,
+  setDoc
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useFarm } from '../lib/farmContext';
 import { useProfile } from '../lib/useProfile';
+import { useToast } from '../lib/ToastContext';
 import { 
   Plus, 
   Droplets, 
@@ -21,7 +25,8 @@ import {
   TrendingUp,
   Thermometer,
   Zap,
-  Sunrise
+  Sunrise,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -54,13 +59,36 @@ interface Cattle {
   cowName: string;
 }
 
+const toDateObject = (val: any): Date | null => {
+  if (!val) return null;
+  if (typeof val.toDate === 'function') {
+    return val.toDate();
+  }
+  if (val instanceof Date) {
+    return val;
+  }
+  if (typeof val === 'number') {
+    return new Date(val);
+  }
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (val.seconds !== undefined) {
+    return new Date(val.seconds * 1000);
+  }
+  return null;
+};
+
 export const MilkProduction: React.FC = () => {
   const { farmOwnerId } = useFarm();
   const { profile, loading: profileLoading } = useProfile();
+  const { showSuccess, showError } = useToast();
   const [entries, setEntries] = useState<MilkEntry[]>([]);
   const [herd, setHerd] = useState<Cattle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [newEntry, setNewEntry] = useState({
     cowId: '',
     morningYield: 0,
@@ -116,10 +144,31 @@ export const MilkProduction: React.FC = () => {
         recordedBy: auth.currentUser.uid,
         ownerId: farmOwnerId
       });
+      showSuccess(`Milk production entry recorded successfully!`);
       setShowAddForm(false);
       setNewEntry({ cowId: '', morningYield: 0, eveningYield: 0, notes: '' });
     } catch (err) {
+      showError('Failed to record milk production');
       handleFirestoreError(err, OperationType.CREATE, 'production');
+    }
+  };
+
+  const isOwner = profile?.role === 'owner';
+
+  const handleDelete = async (id: string) => {
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+    try {
+      await deleteDoc(doc(db, 'production', id));
+      showSuccess(`Milk production entry deleted`, {
+        undoAction: async () => {
+          const { id: _, ...entryData } = entry;
+          await setDoc(doc(db, 'production', id), entryData);
+        }
+      });
+    } catch (err) {
+      showError('Failed to delete milk production entry');
+      handleFirestoreError(err, OperationType.DELETE, `production/${id}`);
     }
   };
 
@@ -133,15 +182,21 @@ export const MilkProduction: React.FC = () => {
   }
 
 
-  const chartData = entries.map(e => ({
-    date: e.timestamp ? format(e.timestamp.toDate(), 'MMM dd') : '...',
-    quantity: e.totalYield,
-    fullDate: e.timestamp ? format(e.timestamp.toDate(), 'yyyy-MM-dd HH:mm') : ''
-  })).slice(-14); // Last 14 entries
+  const chartData = entries.map(e => {
+    const d = toDateObject(e.timestamp);
+    return {
+      date: d ? format(d, 'MMM dd') : '...',
+      quantity: e.totalYield ?? 0,
+      fullDate: d ? format(d, 'yyyy-MM-dd HH:mm') : ''
+    };
+  }).slice(-14); // Last 14 entries
 
   const totalToday = entries
-    .filter(e => e.timestamp?.toDate().toDateString() === new Date().toDateString())
-    .reduce((acc, curr) => acc + curr.totalYield, 0);
+    .filter(e => {
+      const d = toDateObject(e.timestamp);
+      return d ? d.toDateString() === new Date().toDateString() : false;
+    })
+    .reduce((acc, curr) => acc + (curr.totalYield ?? 0), 0);
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -171,7 +226,7 @@ export const MilkProduction: React.FC = () => {
           >
             <Zap className="w-6 h-6 mb-6 opacity-60" />
             <p className="text-[10px] font-bold uppercase tracking-[4px] opacity-70 mb-2">Total Yield Today</p>
-            <h3 className="text-6xl font-black tracking-tighter serif italic">{totalToday}<span className="text-2xl ml-1 font-sans not-italic">L</span></h3>
+            <h3 className="text-6xl font-black tracking-tighter serif italic">{(totalToday ?? 0).toFixed(1)}<span className="text-2xl ml-1 font-sans not-italic">L</span></h3>
             <div className="mt-8 pt-6 border-t border-cream-100/10 flex items-center space-x-3">
               <div className="w-2 h-2 bg-cream-100 rounded-full animate-pulse" />
               <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">System Synchronized</span>
@@ -311,29 +366,60 @@ export const MilkProduction: React.FC = () => {
                     <th className="p-6 text-right">Evening (L)</th>
                     <th className="p-6 text-right font-black">Total Yield</th>
                     <th className="p-6 text-center">Status</th>
+                    <th className="p-6 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y-2 divide-mud-900/5">
-                  {entries.reverse().slice(0, 10).map((entry) => {
+                  {[...entries].reverse().slice(0, 10).map((entry) => {
                     const cow = herd.find(c => c.id === entry.cowId);
+                    const entryDate = toDateObject(entry.timestamp);
                     return (
                       <tr key={entry.id} className="hover:bg-terracotta-50 transition-colors group">
                         <td className="p-6">
                           <div className="text-[11px] font-black text-mud-900 uppercase tracking-tight">
-                            {entry.timestamp ? format(entry.timestamp.toDate(), 'dd MMM yyyy') : '...'}
+                            {entryDate ? format(entryDate, 'dd MMM yyyy') : '...'}
                           </div>
                         </td>
                         <td className="p-6">
                            <div className="text-[11px] font-black text-mud-900 uppercase">{cow ? cow.cowName : 'UNKNOWN'}</div>
                            <div className="text-[9px] font-bold text-mud-900/40">{cow ? cow.tagId : 'N/A'}</div>
                         </td>
-                        <td className="p-6 text-right text-sm font-bold">{entry.morningYield.toFixed(1)}</td>
-                        <td className="p-6 text-right text-sm font-bold">{entry.eveningYield.toFixed(1)}</td>
-                        <td className="p-6 text-right text-lg font-black font-serif italic text-terracotta-500">{entry.totalYield.toFixed(1)} L</td>
+                        <td className="p-6 text-right text-sm font-bold">{(entry.morningYield ?? 0).toFixed(1)}</td>
+                        <td className="p-6 text-right text-sm font-bold">{(entry.eveningYield ?? 0).toFixed(1)}</td>
+                        <td className="p-6 text-right text-lg font-black font-serif italic text-terracotta-500">{(entry.totalYield ?? 0).toFixed(1)} L</td>
                         <td className="p-6">
                            <div className="flex justify-center items-center">
                               <div className="px-3 py-1 bg-leaf-500/10 text-leaf-500 text-[9px] font-black uppercase border border-leaf-500/20">Synced</div>
                            </div>
+                        </td>
+                        <td className="p-6 text-center">
+                          {deletingId === entry.id ? (
+                            <div className="flex items-center justify-center space-x-2 animate-in fade-in zoom-in duration-200">
+                              <button
+                                onClick={() => {
+                                  handleDelete(entry.id);
+                                  setDeletingId(null);
+                                }}
+                                className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-cream-100 text-[9px] font-black uppercase tracking-wider rounded border border-red-600 cursor-pointer"
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => setDeletingId(null)}
+                                className="px-2.5 py-1 bg-cream-100 hover:bg-cream-200 text-mud-900 text-[9px] font-black uppercase tracking-wider rounded border border-mud-900/10 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => setDeletingId(entry.id)}
+                              className="text-terracotta-500 hover:text-white hover:bg-terracotta-500 p-2 rounded transition-colors inline-flex items-center justify-center border-2 border-terracotta-500/20"
+                              title="Delete Entry"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

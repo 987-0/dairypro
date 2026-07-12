@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, query, orderBy, serverTimestamp, deleteDoc, doc, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, query, orderBy, serverTimestamp, deleteDoc, doc, where, setDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useFarm } from '../lib/farmContext';
+import { useToast } from '../lib/ToastContext';
 import { Plus, Wallet, TrendingUp, TrendingDown, DollarSign, ChevronRight, Milk, Trash2, PieChart, Activity, X, CreditCard, FileText, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -22,6 +23,7 @@ interface Transaction {
 export const Finance: React.FC = () => {
   const { farmOwnerId } = useFarm();
   const { profile, loading: profileLoading } = useProfile();
+  const { showSuccess, showError } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -112,6 +114,7 @@ export const Finance: React.FC = () => {
         date: serverTimestamp(),
         ownerId: farmOwnerId
       });
+      showSuccess(`Transaction for ${newTx.type === 'income' ? 'Income' : 'Expense'} recorded successfully!`);
       setShowAddModal(false);
       setNewTx({ 
         type: 'expense', 
@@ -122,14 +125,24 @@ export const Finance: React.FC = () => {
         referenceNumber: ''
       });
     } catch (err) {
+      showError('Failed to record transaction');
       handleFirestoreError(err, OperationType.CREATE, 'transactions');
     }
   };
 
   const handleDelete = async (id: string) => {
+    const tx = transactions.find(t => t.id === id);
+    if (!tx) return;
     try {
       await deleteDoc(doc(db, 'transactions', id));
+      showSuccess(`Transaction of ${tx.amount} deleted`, {
+        undoAction: async () => {
+          const { id: _, ...txData } = tx;
+          await setDoc(doc(db, 'transactions', id), txData);
+        }
+      });
     } catch (err) {
+      showError('Failed to delete transaction');
       handleFirestoreError(err, OperationType.DELETE, `transactions/${id}`);
     }
   };

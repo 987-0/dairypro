@@ -9,10 +9,12 @@ import {
   where,
   deleteDoc,
   doc,
-  updateDoc
+  updateDoc,
+  setDoc
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useFarm } from '../lib/farmContext';
+import { useToast } from '../lib/ToastContext';
 import { 
   Plus, 
   Users, 
@@ -55,6 +57,7 @@ const statusThemes: any = {
 export const LabourManagement: React.FC = () => {
   const { farmOwnerId } = useFarm();
   const { profile, loading: profileLoading } = useProfile();
+  const { showSuccess, showError } = useToast();
   const [labour, setLabour] = useState<LabourMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -96,6 +99,7 @@ export const LabourManagement: React.FC = () => {
         ownerId: farmOwnerId,
         createdAt: serverTimestamp()
       });
+      showSuccess(`Staff member "${newMember.workerName}" registered successfully!`);
       setShowAddModal(false);
       setNewMember({
         workerName: '',
@@ -108,25 +112,38 @@ export const LabourManagement: React.FC = () => {
         status: 'Active'
       });
     } catch (err) {
+      showError('Failed to register staff member');
       handleFirestoreError(err, OperationType.CREATE, 'labour');
     }
   };
 
   const handleDelete = async (id: string) => {
+    const worker = labour.find(w => w.id === id);
+    if (!worker) return;
     if (!confirm("Are you sure you want to delete this worker's record?")) return;
     try {
       await deleteDoc(doc(db, 'labour', id));
+      showSuccess(`Staff record for "${worker.workerName}" deleted successfully`, {
+        undoAction: async () => {
+          const { id: _, ...workerData } = worker;
+          await setDoc(doc(db, 'labour', id), workerData);
+        }
+      });
     } catch (err) {
+      showError('Failed to delete staff record');
       handleFirestoreError(err, OperationType.DELETE, `labour/${id}`);
     }
   };
 
   const toggleStatus = async (id: string, current: string) => {
     try {
+      const nextStatus = current === 'Active' ? 'Inactive' : 'Active';
       await updateDoc(doc(db, 'labour', id), {
-        status: current === 'Active' ? 'Inactive' : 'Active'
+        status: nextStatus
       });
+      showSuccess(`Staff status changed to ${nextStatus}`);
     } catch (err) {
+      showError('Failed to update staff status');
       handleFirestoreError(err, OperationType.UPDATE, `labour/${id}`);
     }
   };
@@ -249,11 +266,13 @@ export const LabourManagement: React.FC = () => {
                   <div className="w-8 h-8 rounded-full border-2 border-white bg-mud-900 flex items-center justify-center text-[10px] font-black text-white">{member.workerName[0]}</div>
                   <div className="w-8 h-8 rounded-full border-2 border-white bg-terracotta-500 flex items-center justify-center text-[10px] font-black text-white hover:z-10 transition-all cursor-pointer"><Activity className="w-3 h-3" /></div>
                </div>
-               {isOwner && (
-                 <button onClick={() => handleDelete(member.id)} className="text-terracotta-500 opacity-60 md:opacity-20 hover:opacity-100 transition-opacity p-2 hover:bg-terracotta-50 rounded-lg">
+                 <button 
+                   onClick={() => handleDelete(member.id)} 
+                   className="text-terracotta-500 hover:text-white hover:bg-terracotta-500 p-2 rounded transition-colors inline-flex items-center justify-center border-2 border-terracotta-500/20"
+                   title="Delete Worker Record"
+                 >
                     <Trash2 className="w-4 h-4" />
                  </button>
-               )}
             </div>
           </motion.div>
         ))}

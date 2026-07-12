@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, serverTimestamp, where, deleteDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../lib/firebase';
 import { useFarm } from '../lib/farmContext';
 import { useProfile } from '../lib/useProfile';
+import { useToast } from '../lib/ToastContext';
 import { Plus, Trash2, Package, AlertTriangle, Droplets, FlaskConical, Boxes, Settings, Activity, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -47,6 +48,7 @@ const CATALOG_PRESETS: CatalogPreset[] = [
 export const Inventory: React.FC = () => {
   const { farmOwnerId } = useFarm();
   const { profile, loading: profileLoading } = useProfile();
+  const { showSuccess, showError } = useToast();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -94,9 +96,11 @@ export const Inventory: React.FC = () => {
         ownerId: farmOwnerId,
         updatedAt: serverTimestamp()
       });
+      showSuccess(`Inventory item "${newItem.name}" added successfully!`);
       setShowAddModal(false);
       setNewItem({ name: '', category: 'feed', quantity: 10, unit: 'KG', minThreshold: 10, acquisitionCost: 0 });
     } catch (err) {
+      showError('Failed to add inventory item');
       handleFirestoreError(err, OperationType.CREATE, 'inventory');
     }
   };
@@ -111,6 +115,27 @@ export const Inventory: React.FC = () => {
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `inventory/${id}`);
+    }
+  };
+
+  const isOwner = profile?.role === 'owner';
+
+  const handleDelete = async (id: string) => {
+    if (profile?.role !== 'owner') return;
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    if (!confirm('Are you sure you want to delete this inventory item?')) return;
+    try {
+      await deleteDoc(doc(db, 'inventory', id));
+      showSuccess(`Inventory item "${item.name}" deleted successfully`, {
+        undoAction: async () => {
+          const { id: _, ...itemData } = item;
+          await setDoc(doc(db, 'inventory', id), itemData);
+        }
+      });
+    } catch (err) {
+      showError('Failed to delete inventory item');
+      handleFirestoreError(err, OperationType.DELETE, `inventory/${id}`);
     }
   };
 
@@ -207,14 +232,27 @@ export const Inventory: React.FC = () => {
                     <div className="flex items-center space-x-3">
                        <button 
                         onClick={() => handleUpdateQuantity(item.id, -1)}
-                        className="w-10 h-10 border-2 border-mud-900/5 flex items-center justify-center font-black text-mud-900 hover:bg-mud-900 hover:text-white transition-all shadow-sm group-hover:border-mud-900">
+                        className="w-10 h-10 border-2 border-mud-900/5 flex items-center justify-center font-black text-mud-900 hover:bg-mud-900 hover:text-white transition-all shadow-sm group-hover:border-mud-900"
+                        title="Decrease Stock"
+                       >
                           -
                         </button>
                        <button 
                         onClick={() => handleUpdateQuantity(item.id, 1)}
-                        className="w-10 h-10 border-2 border-mud-900/5 flex items-center justify-center font-black text-mud-900 hover:bg-mud-900 hover:text-white transition-all shadow-sm group-hover:border-mud-900">
+                        className="w-10 h-10 border-2 border-mud-900/5 flex items-center justify-center font-black text-mud-900 hover:bg-mud-900 hover:text-white transition-all shadow-sm group-hover:border-mud-900"
+                        title="Increase Stock"
+                       >
                           +
                         </button>
+                       {isOwner && (
+                         <button 
+                          onClick={() => handleDelete(item.id)}
+                          className="w-10 h-10 border-2 border-terracotta-500/20 text-terracotta-500 flex items-center justify-center hover:bg-terracotta-500 hover:text-white transition-all shadow-sm rounded-sm"
+                          title="Delete Inventory Item"
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </button>
+                       )}
                     </div>
                   </td>
                 </tr>

@@ -8,11 +8,13 @@ import {
   serverTimestamp,
   where,
   deleteDoc,
-  doc
+  doc,
+  setDoc
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useFarm } from '../lib/farmContext';
 import { useProfile } from '../lib/useProfile';
+import { useToast } from '../lib/ToastContext';
 import { 
   Plus, 
   Stethoscope, 
@@ -56,6 +58,7 @@ interface Cattle {
 export const HealthRecords: React.FC = () => {
   const { farmOwnerId } = useFarm();
   const { profile, loading: profileLoading } = useProfile();
+  const { showSuccess, showError } = useToast();
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [herd, setHerd] = useState<Cattle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +116,7 @@ export const HealthRecords: React.FC = () => {
         ownerId: farmOwnerId,
         createdAt: serverTimestamp()
       });
+      showSuccess(`Health record registered successfully!`);
       setShowAddModal(false);
       setNewRecord({
         cowId: '',
@@ -126,16 +130,25 @@ export const HealthRecords: React.FC = () => {
         status: 'Scheduled'
       });
     } catch (err) {
+      showError('Failed to register health record');
       handleFirestoreError(err, OperationType.CREATE, 'health');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (profile?.role !== 'owner') return;
+    const record = records.find(r => r.id === id);
+    if (!record) return;
     if (!confirm('Are you sure you want to delete this health record?')) return;
     try {
       await deleteDoc(doc(db, 'health', id));
+      showSuccess(`Health record deleted successfully`, {
+        undoAction: async () => {
+          const { id: _, ...recordData } = record;
+          await setDoc(doc(db, 'health', id), recordData);
+        }
+      });
     } catch (err) {
+      showError('Failed to delete health record');
       handleFirestoreError(err, OperationType.DELETE, `health/${id}`);
     }
   };
@@ -198,11 +211,13 @@ export const HealthRecords: React.FC = () => {
                     {cow ? `${cow.cowName} (${cow.tagId})` : 'Unknown Cattle'}
                   </h3>
                 </div>
-                {isOwner && (
-                  <button onClick={() => handleDelete(record.id)} className="text-terracotta-500 opacity-60 md:opacity-20 hover:opacity-100 transition-opacity p-2">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                <button 
+                  onClick={() => handleDelete(record.id)} 
+                  className="text-terracotta-500 hover:text-white hover:bg-terracotta-500 p-2 rounded transition-colors inline-flex items-center justify-center border-2 border-terracotta-500/20"
+                  title="Delete Health Record"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-6 mb-8">

@@ -27,26 +27,30 @@ const ViewLoadingFallback = () => (
   </div>
 );
 
+import { ToastProvider } from './lib/ToastContext';
+
 export default function App() {
   return (
     <FarmProvider>
-      <Router>
-        <Shell>
-          <Suspense fallback={<ViewLoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/herd" element={<HerdManagement />} />
-              <Route path="/production" element={<MilkProduction />} />
-              <Route path="/health" element={<HealthRecords />} />
-              <Route path="/labour" element={<LabourManagement />} />
-              <Route path="/inventory" element={<Inventory />} />
-              <Route path="/finance" element={<Finance />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/calendar" element={<CalendarView />} />
-            </Routes>
-          </Suspense>
-        </Shell>
-      </Router>
+      <ToastProvider>
+        <Router>
+          <Shell>
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/herd" element={<HerdManagement />} />
+                <Route path="/production" element={<MilkProduction />} />
+                <Route path="/health" element={<HealthRecords />} />
+                <Route path="/labour" element={<LabourManagement />} />
+                <Route path="/inventory" element={<Inventory />} />
+                <Route path="/finance" element={<Finance />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/calendar" element={<CalendarView />} />
+              </Routes>
+            </Suspense>
+          </Shell>
+        </Router>
+      </ToastProvider>
     </FarmProvider>
   );
 }
