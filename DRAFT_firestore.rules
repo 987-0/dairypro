@@ -1,0 +1,142 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- PHASE 3: PRIMITIVES ---
+    function isSignedIn() { 
+      return request.auth != null && request.auth.token.email_verified == true; 
+    }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isOwner() {
+      return isSignedIn() && getRole() == 'owner';
+    }
+
+    function isManager() {
+      return isSignedIn() && (getRole() == 'owner' || getRole() == 'employee');
+    }
+
+    // --- PHASE 2: VALIDATION BLUEPRINTS ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role']) 
+        && data.keys().size() >= 4
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() <= 100
+        && data.role in ['owner', 'employee'];
+    }
+
+    function isValidFarm(data) {
+      return data.keys().hasAll(['farmName', 'ownerId'])
+        && data.keys().size() >= 2
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidCattle(data) {
+      return data.keys().hasAll(['tagId', 'cowName', 'ownerId'])
+        && data.keys().size() >= 3
+        && data.tagId is string && data.tagId.size() <= 50
+        && data.cowName is string && data.cowName.size() <= 100
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidProduction(data) {
+      return data.keys().hasAll(['cowId', 'date', 'totalYield', 'ownerId'])
+        && data.keys().size() >= 4
+        && data.totalYield is number && data.totalYield >= 0
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidHealth(data) {
+      return data.keys().hasAll(['cowId', 'eventDate', 'eventType', 'ownerId'])
+        && data.keys().size() >= 4
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['date', 'type', 'amount', 'ownerId'])
+        && data.keys().size() >= 4
+        && data.amount is number && data.amount >= 0
+        && data.type in ['income', 'expense']
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidLabour(data) {
+      return data.keys().hasAll(['workerName', 'workerRole', 'ownerId'])
+        && data.keys().size() >= 3
+        && data.ownerId == request.auth.uid;
+    }
+
+    // --- PHASE 4: MATCH BLOCKS ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (userId == request.auth.uid || isManager());
+      allow list: if isManager();
+      allow create: if isSignedIn() && userId == request.auth.uid && isValidUser(incoming()) && incoming().role == 'employee';
+      allow update: if isSignedIn() && (
+        (userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['displayName'])) ||
+        (isOwner() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'workerId']))
+      );
+    }
+
+    match /farms/{farmId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isOwner() && isValidId(farmId) && isValidFarm(incoming());
+      allow update: if isOwner() && isValidFarm(incoming());
+      allow delete: if isOwner();
+    }
+
+    match /cattle/{cattleId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(cattleId) && isValidCattle(incoming());
+      allow update: if isSignedIn() && isValidCattle(incoming()) && (isManager() || incoming().diff(existing()).affectedKeys().hasOnly(['status', 'weight', 'healthStatus']));
+      allow delete: if isOwner();
+    }
+
+    match /production/{prodId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(prodId) && isValidProduction(incoming());
+      allow update: if isManager() && isValidProduction(incoming());
+      allow delete: if isOwner();
+    }
+
+    match /health/{healthId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(healthId) && isValidHealth(incoming());
+      allow update: if isManager() && isValidHealth(incoming());
+      allow delete: if isOwner();
+    }
+
+    match /transactions/{transactionId} {
+      allow get: if isManager() && existing().ownerId == request.auth.uid;
+      allow list: if isManager() && resource.data.ownerId == request.auth.uid;
+      allow create: if isManager() && isValidId(transactionId) && isValidTransaction(incoming());
+      allow update, delete: if isOwner();
+    }
+
+    match /labour/{labourId} {
+      allow get: if isManager() && existing().ownerId == request.auth.uid;
+      allow list: if isManager() && resource.data.ownerId == request.auth.uid;
+      allow create, update, delete: if isOwner() && isValidLabour(incoming());
+    }
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role representing Farm Labour.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "employee"] },
+        "workerId": { "type": "string", "description": "Mapping to labour record if applicable" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Farm": {
+      "title": "Farm Details",
+      "description": "Information about the farm enterprise.",
+      "type": "object",
+      "properties": {
+        "farmName": { "type": "string" },
+        "location": { "type": "string" },
+        "registrationDate": { "type": "string", "format": "date" },
+        "ownerName": { "type": "string" },
+        "contactNumber": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["farmName", "ownerId"]
+    },
+    "Cattle": {
+      "title": "Cattle Record",
+      "description": "Detailed animal tracking data.",
+      "type": "object",
+      "properties": {
+        "tagId": { "type": "string" },
+        "cowName": { "type": "string" },
+        "breed": { "type": "string" },
+        "birthDate": { "type": "string", "format": "date" },
+        "gender": { "type": "string", "enum": ["Female", "Male"] },
+        "status": { "type": "string", "enum": ["milking", "dry", "heifer", "calf", "sick"] },
+        "purchaseDate": { "type": "string", "format": "date" },
+        "purchasePrice": { "type": "number" },
+        "sireInfo": { "type": "string" },
+        "damInfo": { "type": "string" },
+        "weight": { "type": "number" },
+        "healthStatus": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "farmId": { "type": "string" }
+      },
+      "required": ["tagId", "cowName", "ownerId"]
+    },
+    "MilkProduction": {
+      "title": "Milk Record",
+      "description": "Yield data per cow.",
+      "type": "object",
+      "properties": {
+        "cowId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "morningYield": { "type": "number" },
+        "eveningYield": { "type": "number" },
+        "totalYield": { "type": "number" },
+        "notes": { "type": "string" },
+        "recordedBy": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["cowId", "date", "totalYield", "ownerId"]
+    },
+    "HealthRecord": {
+      "title": "Health Records",
+      "description": "Veterinary and medical history.",
+      "type": "object",
+      "properties": {
+        "cowId": { "type": "string" },
+        "eventDate": { "type": "string", "format": "date" },
+        "eventType": { "type": "string" },
+        "description": { "type": "string" },
+        "veterinarian": { "type": "string" },
+        "cost": { "type": "number" },
+        "medicationGiven": { "type": "string" },
+        "nextDueDate": { "type": "string", "format": "date" },
+        "status": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["cowId", "eventDate", "eventType", "ownerId"]
+    },
+    "FarmFinancial": {
+      "title": "Farm Financials",
+      "description": "Income and expense tracking.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "referenceNumber": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["date", "type", "amount", "ownerId"]
+    },
+    "FarmLabour": {
+      "title": "Farm Labour",
+      "description": "Personnel management.",
+      "type": "object",
+      "properties": {
+        "workerName": { "type": "string" },
+        "workerRole": { "type": "string" },
+        "hireDate": { "type": "string", "format": "date" },
+        "salaryWage": { "type": "number" },
+        "contactNumber": { "type": "string" },
+        "idNumber": { "type": "string" },
+        "workSchedule": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["workerName", "workerRole", "ownerId"]
+    },
+    "Schedule": {
+      "title": "Ecosystem Schedule Event",
+      "description": "Standardized crop/herd management and logistics schedules.",
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string" },
+        "description": { "type": "string" },
+        "location": { "type": "string" },
+        "startDateTime": { "type": "string" },
+        "endDateTime": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["summary", "startDateTime", "endDateTime", "ownerId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User accounts" },
+    "/farms/{farmId}": { "schema": "Farm", "description": "Farm properties" },
+    "/cattle/{cattleId}": { "schema": "Cattle", "description": "Main herd database" },
+    "/production/{prodId}": { "schema": "MilkProduction", "description": "Yield logs" },
+    "/health/{healthId}": { "schema": "HealthRecord", "description": "Health logs" },
+    "/transactions/{transactionId}": { "schema": "FarmFinancial", "description": "Financial ledger" },
+    "/labour/{labourId}": { "schema": "FarmLabour", "description": "Staff files" },
+    "/schedules/{scheduleId}": { "schema": "Schedule", "description": "Agricultural operations schedule" }
+  }
+}

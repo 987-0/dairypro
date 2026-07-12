@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- MAIN MATCH BLOCKS ---
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /farms/{farmId} {
+      allow read, write: if true;
+    }
+
+    match /cattle/{cattleId} {
+      allow read, write: if true;
+    }
+
+    match /production/{prodId} {
+      allow read, write: if true;
+    }
+
+    match /health/{healthId} {
+      allow read, write: if true;
+    }
+
+    match /transactions/{transactionId} {
+      allow read, write: if true;
+    }
+
+    match /labour/{labourId} {
+      allow read, write: if true;
+    }
+
+    match /inventory/{itemId} {
+      allow read, write: if true;
+    }
+
+    match /schedules/{scheduleId} {
+      allow read, write: if true;
+    }
+  }
+}

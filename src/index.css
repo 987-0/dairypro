@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+@import "tailwindcss";
+
+:root {
+  --cream-100: #F2E8DF;
+  --mud-900: #261C1A;
+  --white: #FFFFFF;
+  --terracotta-50: #fdf5f2;
+  --ochre-100: #fcf4e4;
+  
+  --sidebar-bg: #261C1A;
+  --sidebar-text: #F2E8DF;
+}
+
+.dark {
+  --cream-100: #1D1513;  /* Elevated softer dark cocoa savanna soil (was #100B0A) */
+  --mud-900: #E6D8CD;    /* Light savanna sand */
+  --white: #291F1D;     /* Elevated warmer dark soil card background (was #1C1412) */
+  --terracotta-50: #3E2420; /* Softer dark terracotta accent (was #331A15) */
+  --ochre-100: #3B2A1B;   /* Softer dark ochre (was #302111) */
+  
+  --sidebar-bg: #16100F;  /* Softer sidebar background (was #100B0A) */
+  --sidebar-text: #E6D8CD;
+}
+
+@theme {
+  --font-serif: "Times New Roman", Times, serif;
+  --font-sans: "Inter", sans-serif;
+  
+  --color-terracotta-50: var(--terracotta-50);
+  --color-terracotta-100: #fbeae5;
+  --color-terracotta-500: #A64B2A;
+  --color-terracotta-600: #8c3f23;
+  --color-terracotta-700: #74341d;
+  
+  --color-ochre-100: var(--ochre-100);
+  --color-ochre-500: #D99125;
+  --color-ochre-600: #b87b1f;
+  
+  --color-mud-900: var(--mud-900);
+  --color-cream-100: var(--cream-100);
+  --color-leaf-500: #5B6342;
+  
+  --color-white: var(--white);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
+}
+
+@layer base {
+  body {
+    @apply bg-cream-100 text-mud-900 font-sans transition-colors duration-300;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+@layer utilities {
+  .bg-pattern {
+    background-image: 
+      radial-gradient(var(--color-terracotta-500) 0.5px, transparent 0.5px);
+    background-size: 10px 10px;
+  }
+  
+  .border-clay {
+    @apply border-terracotta-500;
+  }
+
+  /* Custom high-performance scrollbars for desktop (Windows) and mobile browsers */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(166, 75, 42, 0.35);
+    border-radius: 9999px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(166, 75, 42, 0.7);
+  }
+  
+  /* Recharts dynamic dark mode support */
+  .recharts-cartesian-axis-tick text, .recharts-label {
+    fill: var(--mud-900) !important;
+    font-weight: 800;
+  }
+  
+  .recharts-cartesian-grid-horizontal line, .recharts-cartesian-grid-vertical line {
+    stroke: var(--mud-900) !important;
+    opacity: 0.1 !important;
+  }
+}
